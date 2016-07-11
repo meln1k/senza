@@ -1,16 +1,7 @@
 class SenzaException(Exception):
     """
-    Base class for Senza execeptions
+    Base class for Senza exceptions
     """
-
-
-class VPCError(SenzaException, AttributeError):
-    """
-    Error raised when there are issues with VPCs configuration
-    """
-
-    def __init__(self, message):
-        super().__init__(message)
 
 
 class PiuNotFound(SenzaException, FileNotFoundError):

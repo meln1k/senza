@@ -19,31 +19,34 @@ import boto3
 import click
 import dns.resolver
 import requests
+import senza
 import yaml
 from botocore.exceptions import ClientError
-from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, error, fatal_error, ok
+from clickclick import (Action, AliasedGroup, FloatRange, OutputFormat, choice,
+                        error, fatal_error, info, ok)
 from clickclick.console import print_table
 
-import senza
 from .arguments import (json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
                         watchrefresh_option)
-from .aws import (parse_time, get_required_capabilities, resolve_topic_arn,
-                  get_stacks, StackReference, matches_any, get_account_id,
-                  get_account_alias, get_tag)
-from .components import get_component, evaluate_template
+from .aws import (StackReference, get_account_alias, get_account_id,
+                  get_required_capabilities, get_stacks, get_tag, matches_any,
+                  parse_time, resolve_topic_arn)
+from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .error_handling import HandleExceptions
-from .exceptions import VPCError
-from .stups.piu import Piu
+from .manaus.ec2 import EC2
+from .manaus.exceptions import VPCError
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
-from .templates import get_templates, get_template_description
+from .stups.piu import Piu
+from .templates import get_template_description, get_templates
 from .templates._helper import get_mint_bucket_name
-from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
-from .utils import (named_value, camel_case_to_underscore, pystache_render,
-                    ensure_keys)
+from .traffic import (change_version_traffic, get_records, get_zone,
+                      print_version_traffic)
+from .utils import (camel_case_to_underscore, ensure_keys, named_value,
+                    pystache_render)
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -323,22 +326,9 @@ class AccountArguments:
     @property
     def VpcID(self):
         if self.__VpcID is None:
-            ec2 = boto3.resource('ec2', self.Region)
-            vpc_list = list()
-            for vpc in ec2.vpcs.all():  # don't use the list from blow. .all() use a internal pageing!
-                if vpc.is_default:
-                    self.__VpcID = vpc.vpc_id
-                    break
-                vpc_list.append(vpc)
-            else:
-                if len(vpc_list) == 1:
-                    # Use the only one VPC if no default VPC found
-                    self.__VpcID = vpc_list[0].vpc_id
-                elif len(vpc_list) > 1:
-                    raise VPCError('Multiple VPCs are only supported if one '
-                                   'VPC is the default VPC (IsDefault=true)!')
-                else:
-                    raise VPCError('Can\'t find any VPC!')
+            ec2 = EC2(self.Region)
+            vpc = ec2.get_default_vpn()
+            self.__VpcID = vpc.vpc_id
         return self.__VpcID
 
     @property
